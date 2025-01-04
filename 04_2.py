@@ -3,6 +3,17 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from adjustText import adjust_text
+
+# Constants for styling
+COLOR_CLUSTER1 = "#ecb39c"  # Light salmon color
+COLOR_CLUSTER2 = "#44827f"  # Teal color
+CLUSTER_COLORS = [
+    COLOR_CLUSTER1,
+    COLOR_CLUSTER2,
+    "#99d3c4",
+    "#ffe6b7",
+]  # Additional colors for more clusters
 
 # Example data: List of documents with keywords and their relevance scores
 original_keywords = [
@@ -99,19 +110,47 @@ df = pd.DataFrame(reduced_data, columns=["PCA1", "PCA2"])
 df["Cluster"] = kmeans.labels_
 df["Keyword"] = all_keywords
 
-# Visualize the clusters
-plt.figure(figsize=(12, 8))
-for cluster in range(num_clusters):
+# Visualize each cluster in separate subplots
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))  # Create a 2x2 grid for subplots
+axes = axes.flatten()  # Flatten the axes array for easier iteration
+
+for cluster, ax in enumerate(axes):
     cluster_data = df[df["Cluster"] == cluster]
-    plt.scatter(cluster_data["PCA1"], cluster_data["PCA2"], label=f"Cluster {cluster}")
+    color = CLUSTER_COLORS[
+        cluster % len(CLUSTER_COLORS)
+    ]  # Cycle through defined colors
 
-# Annotate points with keywords
-for _, row in df.iterrows():
-    plt.text(row["PCA1"], row["PCA2"], row["Keyword"], fontsize=8, alpha=0.7)
+    # Scatter plot for the current cluster
+    ax.scatter(
+        cluster_data["PCA1"],
+        cluster_data["PCA2"],
+        color=color,
+        label=f"Cluster {cluster}",
+        alpha=0.7,
+        edgecolors="black",
+        s=100,
+    )
 
-plt.title("K-Means Clustering of Keywords")
-plt.xlabel("PCA1")
-plt.ylabel("PCA2")
-plt.legend()
+    # Annotate points with keywords using adjustText
+    texts = []
+    for _, row in cluster_data.iterrows():
+        texts.append(ax.text(row["PCA1"], row["PCA2"], row["Keyword"], fontsize=8))
+    adjust_text(
+        texts,
+        ax=ax,
+        arrowprops=dict(arrowstyle="-", color="gray", alpha=0.5),
+        force_points=0.3,
+        force_text=0.6,
+        expand_text=(1.2, 1.4),
+    )
+
+    # Set titles and labels
+    ax.set_title(f"Cluster {cluster}", fontsize=14)
+    ax.set_xlabel("PCA1", fontsize=10)
+    ax.set_ylabel("PCA2", fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+
+# Adjust layout and show the plot
 plt.tight_layout()
 plt.show()

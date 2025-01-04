@@ -1,8 +1,19 @@
+import pandas as pd
 import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
-import matplotlib.cm as cm
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from adjustText import adjust_text
 
+# Constants for styling
+COLOR_CLUSTER1 = "#ecb39c"  # Light salmon color
+COLOR_CLUSTER2 = "#44827f"  # Teal color
+CLUSTER_COLORS = [
+    COLOR_CLUSTER1,
+    COLOR_CLUSTER2,
+    "#99d3c4",
+    "#ffe6b7",
+]  # Additional colors for more clusters
 
 # Example data: List of documents with keywords and their relevance scores
 original_keywords = [
@@ -81,52 +92,58 @@ original_keywords = [
 # Extract all keywords
 all_keywords = [keyword for keyword, _ in [k for doc in original_keywords for k in doc]]
 
-# Create a network graph
-G = nx.Graph()
+# Convert keywords to numerical features using TF-IDF
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(all_keywords)
 
-# Add edges based on co-occurrence in documents
-for doc in original_keywords:
-    keywords = [kw[0] for kw in doc]
-    for i, kw1 in enumerate(keywords):
-        for kw2 in keywords[i + 1 :]:
-            if G.has_edge(kw1, kw2):
-                G[kw1][kw2]["weight"] += 1
-            else:
-                G.add_edge(kw1, kw2, weight=1)
+# Perform K-means clustering
+num_clusters = 4  # Adjust the number of clusters as needed
+kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+kmeans.fit(X)
 
-# Extract edge weights
-weights = np.array([G[u][v]["weight"] for u, v in G.edges()])
+# Reduce dimensionality for visualization using PCA
+pca = PCA(n_components=2, random_state=42)
+reduced_data = pca.fit_transform(X.toarray())
 
-# Normalize edge weights for visualization
-normalized_weights = (weights - weights.min()) / (weights.max() - weights.min())
+# Create a DataFrame for visualization
+df = pd.DataFrame(reduced_data, columns=["PCA1", "PCA2"])
+df["Cluster"] = kmeans.labels_
+df["Keyword"] = all_keywords
 
+# Visualize the clusters
+plt.figure(figsize=(12, 8))
+for cluster in range(num_clusters):
+    cluster_data = df[df["Cluster"] == cluster]
+    color = CLUSTER_COLORS[
+        cluster % len(CLUSTER_COLORS)
+    ]  # Cycle through defined colors
+    plt.scatter(
+        cluster_data["PCA1"],
+        cluster_data["PCA2"],
+        color=color,
+        label=f"Cluster {cluster}",
+        alpha=0.7,
+        edgecolors="black",
+        s=100,
+    )
 
-# Visualize the network graph
-plt.figure(figsize=(15, 15))
-pos = nx.spring_layout(G, k=0.5, seed=42)  # Layout for node positioning
+# Annotate points with keywords using adjustText
+texts = []
+for _, row in df.iterrows():
+    texts.append(plt.text(row["PCA1"], row["PCA2"], row["Keyword"], fontsize=8))
 
-
-# edit node style
-node_sizes = [G.degree(node) * 200 for node in G.nodes()]  # Scale node size by degree
-# node_colors = [cmap(i / len(G.nodes())) for i in range(len(G.nodes()))]  # Use colormap for node colors
-nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color="skyblue", alpha=0.5)
-
-
-# edit edge style
-edge_widths = [
-    G[u][v]["weight"] * 1 for u, v in G.edges()
-]  # Scale edge width by weight
-edge_colors = [
-    cm.viridis(w) for w in normalized_weights
-]  # Use colormap for edge colors
-
-nx.draw_networkx_edges(
-    G, pos, edgelist=G.edges(), edge_color=edge_colors, width=edge_widths, alpha=0.6
+adjust_text(
+    texts,
+    arrowprops=dict(arrowstyle="-", color="gray", alpha=0.5),
+    force_points=0.3,
+    force_text=0.6,
+    expand_text=(1.2, 1.4),
 )
 
-
-nx.draw_networkx_labels(G, pos, font_size=8, font_color="black")
-
-plt.title("Network Graph of Keywords with Co-occurrence")
-plt.axis("off")
+plt.title("K-Means Clustering of Keywords", fontsize=16)
+plt.xlabel("PCA1", fontsize=12)
+plt.ylabel("PCA2", fontsize=12)
+plt.legend(fontsize=10)
+plt.grid(alpha=0.3)
+plt.tight_layout()
 plt.show()

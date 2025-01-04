@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import matplotlib.cm as cm
-
+from matplotlib.colors import to_rgb  # Import to_rgb from matplotlib.colors
 
 # Example data: List of documents with keywords and their relevance scores
 original_keywords = [
@@ -78,8 +77,10 @@ original_keywords = [
     ],
 ]
 
-# Extract all keywords
-all_keywords = [keyword for keyword, _ in [k for doc in original_keywords for k in doc]]
+# Define the colors and opacities
+color_group1_5 = "#ecb39c"  # RGB color for groups 1-5
+color_group6_10 = "#44827f"  # RGB color for groups 6-10
+opacities = [0.9, 0.7, 0.5, 0.3, 0.1]  # Opacities for each group
 
 # Create a network graph
 G = nx.Graph()
@@ -94,39 +95,63 @@ for doc in original_keywords:
             else:
                 G.add_edge(kw1, kw2, weight=1)
 
+# Assign colors and opacities to nodes based on their group
+node_colors = {}
+for i, doc in enumerate(original_keywords):
+    group_color = (
+        color_group1_5 if i < 5 else color_group6_10
+    )  # Choose color based on group
+    opacity = opacities[i % 5]  # Assign opacity based on position in group
+    rgba_color = (*to_rgb(group_color), opacity)  # Convert to RGBA with opacity
+    for kw, _ in doc:
+        node_colors[kw] = rgba_color  # Assign the same color to all nodes in the group
+
 # Extract edge weights
 weights = np.array([G[u][v]["weight"] for u, v in G.edges()])
 
 # Normalize edge weights for visualization
-normalized_weights = (weights - weights.min()) / (weights.max() - weights.min())
+if weights.max() != weights.min():  # Avoid division by zero
+    normalized_weights = (weights - weights.min()) / (weights.max() - weights.min())
+else:
+    normalized_weights = np.zeros_like(weights)  # If all weights are the same
 
+# Use a colormap for edge colors
+from matplotlib import cm
+
+cmap = cm.viridis
+edge_colors = [cmap(w) for w in normalized_weights]  # Use colormap for edge colors
 
 # Visualize the network graph
 plt.figure(figsize=(15, 15))
 pos = nx.spring_layout(G, k=0.5, seed=42)  # Layout for node positioning
+# pos = nx.kamada_kawai_layout(G)  # Alternative layout
 
-
-# edit node style
+# Draw nodes with assigned colors and opacities
 node_sizes = [G.degree(node) * 200 for node in G.nodes()]  # Scale node size by degree
-# node_colors = [cmap(i / len(G.nodes())) for i in range(len(G.nodes()))]  # Use colormap for node colors
-nx.draw_networkx_nodes(G, pos, node_size=node_sizes, node_color="skyblue", alpha=0.5)
+nx.draw_networkx_nodes(
+    G,
+    pos,
+    node_size=node_sizes,
+    node_color=[node_colors[node] for node in G.nodes()],  # Use colors for unique nodes
+    edgecolors="black",
+    linewidths=1,
+)
 
-
-# edit edge style
+# Draw edges
 edge_widths = [
     G[u][v]["weight"] * 1 for u, v in G.edges()
 ]  # Scale edge width by weight
-edge_colors = [
-    cm.viridis(w) for w in normalized_weights
-]  # Use colormap for edge colors
-
 nx.draw_networkx_edges(
     G, pos, edgelist=G.edges(), edge_color=edge_colors, width=edge_widths, alpha=0.6
 )
 
+# edge_labels = {(u, v): f"{G[u][v]['weight']}" for u, v in G.edges()}
+# nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=6)
 
+# Draw labels
 nx.draw_networkx_labels(G, pos, font_size=8, font_color="black")
 
+# Add title and display
 plt.title("Network Graph of Keywords with Co-occurrence")
 plt.axis("off")
 plt.show()
